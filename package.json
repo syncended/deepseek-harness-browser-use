@@ -1,0 +1,103 @@
+{
+  "name": "@syncended/dsh-browser-use",
+  "version": "0.1.0",
+  "description": "Persistent Playwright browser tools and interactive browser panel for DeepSeek Harness",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "types": "./lib/types/client/index.d.ts",
+      "default": "./lib/client.js"
+    },
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/client.js",
+    "lib/client.js.map",
+    "lib/index.js.map",
+    "lib/types/**/*.d.ts",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-connection",
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-conversation"
+      ],
+      "platform": "web"
+    }
+  },
+  "scripts": {
+    "build": "rimraf lib && tsdown && pnpm run build:types",
+    "build:types": "tsc -p tsconfig.host.json && tsc -p tsconfig.client.json",
+    "typecheck": "tsc -p tsconfig.host.json --noEmit && tsc -p tsconfig.client.json --noEmit",
+    "pretest": "pnpm run build",
+    "test": "vitest run",
+    "check": "pnpm run typecheck && pnpm run test"
+  },
+  "keywords": [
+    "deepseek-harness",
+    "playwright",
+    "browser-use",
+    "agent"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/syncended/deepseek-harness-browser-use.git"
+  },
+  "dependencies": {
+    "@deepseek-ai/dsh-home-paths": "^0.1.1-rc.2",
+    "playwright-core": "^1.55.0",
+    "proper-lockfile": "^4.1.2"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-attachment": "^0.1.1-rc.2",
+    "@deepseek-ai/dsh-client-connection": "^0.1.1-rc.2",
+    "@deepseek-ai/dsh-client-runtime": "^0.1.1-rc.2",
+    "@deepseek-ai/dsh-client-ui-conversation": "^0.1.1-rc.2",
+    "@deepseek-ai/dsh-client-ui-layout": "^0.1.1-rc.2",
+    "@deepseek-ai/dsh-client-ui-slots": "^0.1.1-rc.2",
+    "@deepseek-ai/dsh-llm": "^0.1.1-rc.2",
+    "@deepseek-ai/dsh-tools": "^0.1.1-rc.2",
+    "react": "^18.2.0"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-attachment": "^0.1.1-rc.2",
+    "@deepseek-ai/dsh-client-connection": "^0.1.1-rc.2",
+    "@deepseek-ai/dsh-client-runtime": "^0.1.1-rc.2",
+    "@deepseek-ai/dsh-client-ui-conversation": "^0.1.1-rc.2",
+    "@deepseek-ai/dsh-client-ui-layout": "^0.1.1-rc.2",
+    "@deepseek-ai/dsh-client-ui-slots": "^0.1.1-rc.2",
+    "@deepseek-ai/dsh-llm": "^0.1.1-rc.2",
+    "@deepseek-ai/dsh-tools": "^0.1.1-rc.2",
+    "@types/node": "^22.18.0",
+    "@types/proper-lockfile": "^4.1.4",
+    "@types/react": "~18.3.1",
+    "react": "^18.2.0",
+    "rimraf": "^6.0.1",
+    "tsdown": "^0.15.0",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@11.22.0"
+}

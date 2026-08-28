@@ -1,0 +1,11 @@
+- insert:
+    - id: browser-use
+      name: '@syncended/dsh-browser-use'
+      config:
+        profile: default
+        headless: true
+        viewportWidth: 1280
+        viewportHeight: 800
+        screenshotQuality: 70
+        operationTimeoutMs: 20000
+        humanLeaseTtlMs: 15000

@@ -2,4 +2,4 @@
 
 Persistent Playwright browser and an interactive browser panel for DeepSeek Harness.
 
-Status: work in progress.
+Status: MVP.
