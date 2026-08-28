@@ -1,0 +1,14 @@
+node_modules/
+lib/
+dist/
+coverage/
+*.log
+.DS_Store
+.env
+.env.*
+!.env.example
+
+# Never commit persistent browser profiles or downloaded files.
+.browser-use/
+playwright-report/
+test-results/
