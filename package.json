@@ -47,7 +47,8 @@
     "typecheck": "tsc -p tsconfig.host.json --noEmit && tsc -p tsconfig.client.json --noEmit",
     "pretest": "pnpm run build",
     "test": "vitest run",
-    "check": "pnpm run typecheck && pnpm run test"
+    "check": "pnpm run typecheck && pnpm run test",
+    "prepare": "pnpm run build"
   },
   "keywords": [
     "deepseek-harness",
