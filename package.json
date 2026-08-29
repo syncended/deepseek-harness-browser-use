@@ -56,10 +56,18 @@
     "browser-use",
     "agent"
   ],
+  "author": "syncended",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/syncended/deepseek-harness-browser-use.git"
+  },
+  "bugs": {
+    "url": "https://github.com/syncended/deepseek-harness-browser-use/issues"
+  },
+  "homepage": "https://github.com/syncended/deepseek-harness-browser-use#readme",
+  "publishConfig": {
+    "access": "public"
   },
   "dependencies": {
     "@deepseek-ai/dsh-home-paths": "^0.1.1-rc.2",
