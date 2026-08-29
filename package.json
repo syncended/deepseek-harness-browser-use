@@ -24,6 +24,7 @@
     "lib/index.js.map",
     "lib/types/**/*.d.ts",
     "cordis.patch.yml",
+    "docs/assets/browser-panel.png",
     "README.md",
     "LICENSE"
   ],
