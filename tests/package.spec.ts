@@ -21,6 +21,7 @@ describe('published package surface', () => {
     expect(bundle).toContain('id: "browser"')
     expect(bundle).toContain('viewport/resize')
     expect(bundle).toContain('data-conversation-composer-overlay')
+    expect(bundle).toContain('getRandomValues')
     expect(bundle).toContain('return module.exports; } });')
   })
 })

@@ -71,8 +71,14 @@ function clampViewport(value: number, minimum: number, maximum: number): number 
   return Math.min(maximum, Math.max(minimum, Math.round(value)))
 }
 
+function randomClientId(): string {
+  if (typeof globalThis.crypto.randomUUID === 'function') return globalThis.crypto.randomUUID()
+  const bytes = globalThis.crypto.getRandomValues(new Uint8Array(16))
+  return [...bytes].map(byte => byte.toString(16).padStart(2, '0')).join('')
+}
+
 function BrowserPanel({ rpc }: PanelProps) {
-  const [clientId] = useState(() => globalThis.crypto.randomUUID())
+  const [clientId] = useState(randomClientId)
   const imageRef = useRef<HTMLImageElement>(null)
   const viewportRef = useRef<HTMLDivElement>(null)
   const lastViewport = useRef('')
