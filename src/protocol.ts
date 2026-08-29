@@ -46,6 +46,7 @@ export type BrowserRpcEndpoint =
   | 'tabs/select'
   | 'tabs/close'
   | 'pointer/click'
+  | 'viewport/resize'
   | 'wheel'
   | 'key'
 
@@ -53,6 +54,7 @@ export interface BrowserUseConfig {
   profile?: string
   headless?: boolean
   executablePath?: string
+  noSandbox?: boolean
   viewportWidth?: number
   viewportHeight?: number
   screenshotQuality?: number

@@ -14,6 +14,11 @@ import type {
   BrowserUseConfig,
 } from './protocol.js'
 
+const MIN_VIEWPORT_WIDTH = 640
+const MAX_VIEWPORT_WIDTH = 1920
+const MIN_VIEWPORT_HEIGHT = 400
+const MAX_VIEWPORT_HEIGHT = 1200
+
 const INTERACTIVE_SELECTOR = [
   'a[href]',
   'button',
@@ -28,6 +33,7 @@ const INTERACTIVE_SELECTOR = [
 const DEFAULT_CONFIG = Object.freeze({
   profile: 'default',
   headless: true,
+  noSandbox: false,
   viewportWidth: 1280,
   viewportHeight: 800,
   screenshotQuality: 70,
@@ -39,6 +45,7 @@ interface ResolvedBrowserUseConfig {
   profile: string
   headless: boolean
   executablePath?: string
+  noSandbox: boolean
   viewportWidth: number
   viewportHeight: number
   screenshotQuality: number
@@ -89,6 +96,7 @@ function resolveConfig(config: BrowserUseConfig): ResolvedBrowserUseConfig {
     profile,
     headless: config.headless ?? DEFAULT_CONFIG.headless,
     ...(config.executablePath?.trim() ? { executablePath: config.executablePath.trim() } : {}),
+    noSandbox: config.noSandbox ?? DEFAULT_CONFIG.noSandbox,
     viewportWidth: positiveInteger(config.viewportWidth, DEFAULT_CONFIG.viewportWidth, 'viewportWidth'),
     viewportHeight: positiveInteger(config.viewportHeight, DEFAULT_CONFIG.viewportHeight, 'viewportHeight'),
     screenshotQuality,
@@ -515,6 +523,30 @@ export class BrowserManager {
     })
   }
 
+  async humanResize(
+    clientId: string,
+    width: number,
+    height: number,
+    signal?: AbortSignal,
+  ): Promise<BrowserActionView> {
+    const actor = { kind: 'human', clientId } as const
+    return this.#exclusive(async () => {
+      this.#assertControl(actor)
+      if (!Number.isSafeInteger(width) || width < MIN_VIEWPORT_WIDTH || width > MAX_VIEWPORT_WIDTH) {
+        throw new Error(`viewport width must be an integer from ${String(MIN_VIEWPORT_WIDTH)} to ${String(MAX_VIEWPORT_WIDTH)}`)
+      }
+      if (!Number.isSafeInteger(height) || height < MIN_VIEWPORT_HEIGHT || height > MAX_VIEWPORT_HEIGHT) {
+        throw new Error(`viewport height must be an integer from ${String(MIN_VIEWPORT_HEIGHT)} to ${String(MAX_VIEWPORT_HEIGHT)}`)
+      }
+      const page = await this.#activePage()
+      throwIfAborted(signal)
+      await page.setViewportSize({ width, height })
+      throwIfAborted(signal)
+      await this.#invalidateSnapshot()
+      return this.#actionView(page)
+    })
+  }
+
   async humanClick(clientId: string, x: number, y: number, signal?: AbortSignal): Promise<BrowserActionView> {
     const actor = { kind: 'human', clientId } as const
     return this.#exclusive(async () => {
@@ -606,7 +638,10 @@ export class BrowserManager {
         acceptDownloads: true,
         downloadsPath: this.downloadsDir,
         viewport: { width: this.config.viewportWidth, height: this.config.viewportHeight },
-        args: ['--disable-dev-shm-usage'],
+        args: [
+          '--disable-dev-shm-usage',
+          ...(this.config.noSandbox ? ['--no-sandbox'] : []),
+        ],
       })
       context.setDefaultTimeout(this.config.operationTimeoutMs)
       context.on('page', (page) => {
@@ -749,10 +784,14 @@ export class BrowserManager {
     throwIfAborted(signal)
     const data = await page.screenshot({ type: 'jpeg', quality: this.config.screenshotQuality, fullPage: false })
     throwIfAborted(signal)
-    return {
-      data,
+    const viewport = page.viewportSize() ?? {
       width: this.config.viewportWidth,
       height: this.config.viewportHeight,
+    }
+    return {
+      data,
+      width: viewport.width,
+      height: viewport.height,
       page: await this.#actionView(page),
     }
   }

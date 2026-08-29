@@ -92,6 +92,16 @@ export function registerBrowserRpc(ctx: Context, browser: BrowserManager): void 
               signal,
             ),
           }
+        case 'viewport/resize':
+          return {
+            ok: true,
+            value: await browser.humanResize(
+              stringField(payload, 'clientId')!,
+              numberField(payload, 'width')!,
+              numberField(payload, 'height')!,
+              signal,
+            ),
+          }
         case 'wheel':
           return {
             ok: true,
@@ -125,5 +135,5 @@ export function registerBrowserRpc(ctx: Context, browser: BrowserManager): void 
     } catch (error: unknown) {
       return failure(error)
     }
-  }, { authority: 'loopback' })
+  }, { authority: 'trusted-host' })
 }

@@ -4,6 +4,7 @@
       config:
         profile: default
         headless: true
+        noSandbox: false
         viewportWidth: 1280
         viewportHeight: 800
         screenshotQuality: 70

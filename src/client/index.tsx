@@ -23,9 +23,15 @@ declare module '@deepseek-ai/cordis' {
 const CHANNEL = '/browser-use'
 const STYLE_ID = '@syncended/dsh-browser-use/client.css'
 const POLL_MS = 400
+const VIEWPORT_RESIZE_DEBOUNCE_MS = 120
+const MIN_VIEWPORT_WIDTH = 640
+const MAX_VIEWPORT_WIDTH = 1920
+const MIN_VIEWPORT_HEIGHT = 400
+const MAX_VIEWPORT_HEIGHT = 1200
 
 const styles = `
-.dbu-panel{display:flex;flex:1;flex-direction:column;min-width:0;min-height:0;background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary)}
+.dbu-panel{display:flex;width:100%;height:100%;flex:1;flex-direction:column;min-width:0;min-height:0;overflow:hidden;background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary)}
+[data-conversation-scroll]:has(.dbu-panel)>[data-composer-seat]{display:none}
 .dbu-toolbar{display:flex;align-items:center;gap:6px;min-width:0;padding:8px 12px;border-bottom:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-1)}
 .dbu-toolbar button,.dbu-toolbar select{height:30px;box-sizing:border-box;border:1px solid var(--dsw-alias-border-l2);border-radius:7px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);padding:0 9px;font:inherit;font-size:12px;cursor:pointer}
 .dbu-toolbar button:hover:not(:disabled),.dbu-toolbar select:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover-solid)}
@@ -36,9 +42,10 @@ const styles = `
 .dbu-url input{width:100%;height:30px;box-sizing:border-box;border:1px solid var(--dsw-alias-border-l2);border-radius:7px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);padding:0 10px;font:inherit;font-size:12px}
 .dbu-url input::placeholder{color:var(--dsw-alias-label-tertiary)}
 .dbu-viewport-wrap{position:relative;display:flex;flex:1;align-items:flex-start;justify-content:center;min-height:0;overflow:auto;background:var(--dsw-alias-bg-layer-3);scrollbar-color:var(--dsw-alias-scrollbar-bg-l2) transparent}
-.dbu-viewport{display:block;width:100%;height:auto;outline:none;cursor:default;user-select:none;-webkit-user-drag:none}
+.dbu-viewport{display:block;width:auto;height:auto;max-width:100%;max-height:100%;outline:none;cursor:default;user-select:none;-webkit-user-drag:none}
 .dbu-viewport[aria-disabled=true]{cursor:wait;opacity:.72}
-.dbu-empty{margin:auto;color:var(--dsw-alias-label-tertiary);font-size:13px;text-align:center;padding:24px}
+.dbu-empty{display:flex;flex:1;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--dsw-alias-label-tertiary);font-size:13px;text-align:center;padding:24px}
+.dbu-empty strong{color:var(--dsw-alias-label-secondary);font-size:14px;font-weight:500}
 .dbu-status{display:flex;gap:8px;align-items:center;min-height:30px;padding:0 12px;border-top:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-1);font-size:11px;color:var(--dsw-alias-label-tertiary)}
 .dbu-status strong{color:var(--dsw-alias-state-success-primary);font-weight:600}
 .dbu-status span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -60,9 +67,15 @@ function activeTab(screen: BrowserScreenView | undefined): BrowserTabView | unde
   return screen?.tabs.find(tab => tab.active)
 }
 
+function clampViewport(value: number, minimum: number, maximum: number): number {
+  return Math.min(maximum, Math.max(minimum, Math.round(value)))
+}
+
 function BrowserPanel({ rpc }: PanelProps) {
   const [clientId] = useState(() => globalThis.crypto.randomUUID())
   const imageRef = useRef<HTMLImageElement>(null)
+  const viewportRef = useRef<HTMLDivElement>(null)
+  const lastViewport = useRef('')
   const editingUrl = useRef(false)
   const mounted = useRef(true)
   const commandTail = useRef<Promise<void>>(Promise.resolve())
@@ -123,6 +136,43 @@ function BrowserPanel({ rpc }: PanelProps) {
     commandTail.current = run.catch(() => undefined)
     return run
   }, [clientId, leaseOwned, rpc])
+
+  useEffect(() => {
+    const viewport = viewportRef.current
+    const pageId = screen?.activePageId
+    if (viewport === null || pageId === undefined || !leaseOwned) return
+    const abort = new AbortController()
+    let timer: ReturnType<typeof setTimeout> | undefined
+    let pending = ''
+    const resize = (): void => {
+      const rect = viewport.getBoundingClientRect()
+      const width = clampViewport(rect.width, MIN_VIEWPORT_WIDTH, MAX_VIEWPORT_WIDTH)
+      const height = clampViewport(rect.height, MIN_VIEWPORT_HEIGHT, MAX_VIEWPORT_HEIGHT)
+      const key = `${pageId}:${String(width)}x${String(height)}`
+      if (key === lastViewport.current || key === pending) return
+      pending = key
+      if (timer !== undefined) clearTimeout(timer)
+      timer = setTimeout(() => {
+        timer = undefined
+        void rpc.call('viewport/resize', { clientId, width, height }, abort.signal)
+          .then(() => { lastViewport.current = key })
+          .catch((reason: unknown) => {
+            if (!abort.signal.aborted && mounted.current) {
+              setError(reason instanceof Error ? reason.message : String(reason))
+            }
+          })
+          .finally(() => { pending = '' })
+      }, VIEWPORT_RESIZE_DEBOUNCE_MS)
+    }
+    const observer = new ResizeObserver(resize)
+    observer.observe(viewport)
+    resize()
+    return () => {
+      abort.abort()
+      observer.disconnect()
+      if (timer !== undefined) clearTimeout(timer)
+    }
+  }, [clientId, leaseOwned, rpc, screen?.activePageId])
 
   useEffect(() => {
     const image = imageRef.current
@@ -193,7 +243,11 @@ function BrowserPanel({ rpc }: PanelProps) {
   const disabled = busy || !leaseOwned
 
   return (
-    <section className="dbu-panel" aria-label="Persistent browser">
+    <section
+      className="dbu-panel"
+      aria-label="Persistent browser"
+      data-conversation-composer-overlay=""
+    >
       <div className="dbu-toolbar">
         <button type="button" disabled={disabled} onClick={() => { void command('back').catch(() => undefined) }} title="Back">←</button>
         <button type="button" disabled={disabled} onClick={() => { void command('forward').catch(() => undefined) }} title="Forward">→</button>
@@ -219,10 +273,17 @@ function BrowserPanel({ rpc }: PanelProps) {
         <button type="button" disabled={disabled} onClick={() => { void command('tabs/new').catch(() => undefined) }} title="New tab">＋</button>
         <button type="button" disabled={disabled || !selected} onClick={() => { void command('tabs/close', { pageId: selected }).catch(() => undefined) }} title="Close tab">×</button>
       </div>
-      <div className="dbu-viewport-wrap">
+      <div ref={viewportRef} className="dbu-viewport-wrap">
         {screen === undefined
           ? <div className="dbu-empty">Starting persistent Chromium…</div>
-          : (
+          : activeTab(screen)?.url === 'about:blank'
+            ? (
+              <div className="dbu-empty">
+                <strong>Browser ready</strong>
+                <span>Enter a URL above to start browsing.</span>
+              </div>
+            )
+            : (
             <img
               ref={imageRef}
               className="dbu-viewport"
@@ -250,7 +311,6 @@ function BrowserPanel({ rpc }: PanelProps) {
 export const inject = ['connection', 'slots']
 
 export function apply(ctx: Context): void {
-  if (!ctx.connection.isLoopback) return
   const rpc: RpcClient = {
     async call<T>(endpoint: string, payload: Record<string, unknown> = {}, signal?: AbortSignal): Promise<T> {
       const result = await ctx.connection.rpc.call(CHANNEL, endpoint, payload, signal)

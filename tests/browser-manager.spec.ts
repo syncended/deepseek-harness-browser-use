@@ -84,6 +84,11 @@ describe('BrowserManager', () => {
       expect(screenshot.height).toBe(800)
 
       await expect(browser.acquireHumanControl('client-a')).resolves.toEqual({ acquired: true, owner: true })
+      await expect(browser.humanResize('client-a', 639, 640)).rejects.toThrow(/viewport width/)
+      await browser.humanResize('client-a', 1024, 640)
+      const resized = await browser.screen('client-a')
+      expect(resized.width).toBe(1024)
+      expect(resized.height).toBe(640)
       await expect(browser.navigate(origin, { kind: 'agent' })).rejects.toThrow(/human control/)
       await browser.humanClick('client-a', 20, 20)
       await expect(browser.acquireHumanControl('client-b')).resolves.toEqual({ acquired: false, owner: false })
