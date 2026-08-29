@@ -17,6 +17,8 @@ describe('published package surface', () => {
     const bundle = await readFile(resolve('lib/client.js'), 'utf8')
     expect(bundle).toContain('window.__ModuleLoader__.load({ id: "@syncended/dsh-browser-use"')
     expect(bundle).toContain('factory: (require) => {')
+    expect(bundle).toContain('name: "conversation.view"')
+    expect(bundle).toContain('id: "browser"')
     expect(bundle).toContain('return module.exports; } });')
   })
 })

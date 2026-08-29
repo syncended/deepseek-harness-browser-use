@@ -2,7 +2,6 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import type {} from '@deepseek-ai/dsh-client-runtime/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
-import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import {
   useCallback,
@@ -26,68 +25,42 @@ const STYLE_ID = '@syncended/dsh-browser-use/client.css'
 const POLL_MS = 400
 
 const styles = `
-.dbu-header-button{height:28px;border:1px solid var(--dsw-alias-border-primary,#d7d7d7);border-radius:7px;background:transparent;color:var(--dsw-alias-label-secondary,#555);padding:0 10px;font:inherit;font-size:12px;cursor:pointer}
-.dbu-header-button:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.1))}
-.dbu-overlay-launcher{position:fixed;right:18px;bottom:18px;z-index:40;pointer-events:auto;box-shadow:0 4px 18px rgba(0,0,0,.18);background:var(--dsw-alias-bg-primary,#fff)}
-.dbu-panel{position:fixed;z-index:50;top:0;right:0;bottom:0;width:min(520px,calc(100vw - 48px));min-width:320px;display:flex;flex-direction:column;box-shadow:-8px 0 28px rgba(0,0,0,.18);background:var(--dsw-alias-bg-primary,#fff);color:var(--dsw-alias-label-primary,#1a1a1a);pointer-events:auto}
-.dbu-toolbar{display:flex;align-items:center;gap:6px;padding:8px;border-bottom:1px solid var(--dsw-alias-border-primary,#ddd)}
-.dbu-toolbar button,.dbu-toolbar select{height:30px;border:1px solid var(--dsw-alias-border-primary,#d0d0d0);border-radius:6px;background:var(--dsw-alias-bg-secondary,#f7f7f7);color:inherit;padding:0 8px;cursor:pointer}
-.dbu-toolbar button:disabled{opacity:.45;cursor:default}
-.dbu-toolbar select{min-width:0;max-width:128px}
-.dbu-url{display:flex;min-width:0;flex:1}
-.dbu-url input{width:100%;height:30px;box-sizing:border-box;border:1px solid var(--dsw-alias-border-primary,#d0d0d0);border-radius:6px;background:var(--dsw-alias-bg-primary,#fff);color:inherit;padding:0 9px;font:inherit;font-size:12px}
-.dbu-viewport-wrap{position:relative;min-height:0;flex:1;display:flex;align-items:flex-start;justify-content:center;overflow:auto;background:#202124}
+.dbu-panel{display:flex;flex:1;flex-direction:column;min-width:0;min-height:0;background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary)}
+.dbu-toolbar{display:flex;align-items:center;gap:6px;min-width:0;padding:8px 12px;border-bottom:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-1)}
+.dbu-toolbar button,.dbu-toolbar select{height:30px;box-sizing:border-box;border:1px solid var(--dsw-alias-border-l2);border-radius:7px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);padding:0 9px;font:inherit;font-size:12px;cursor:pointer}
+.dbu-toolbar button:hover:not(:disabled),.dbu-toolbar select:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover-solid)}
+.dbu-toolbar button:focus-visible,.dbu-toolbar select:focus-visible,.dbu-url input:focus-visible,.dbu-viewport:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary);outline-offset:1px}
+.dbu-toolbar button:disabled,.dbu-toolbar select:disabled,.dbu-url input:disabled{opacity:.45;cursor:default}
+.dbu-toolbar select{min-width:96px;max-width:160px}
+.dbu-url{display:flex;min-width:120px;flex:1}
+.dbu-url input{width:100%;height:30px;box-sizing:border-box;border:1px solid var(--dsw-alias-border-l2);border-radius:7px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);padding:0 10px;font:inherit;font-size:12px}
+.dbu-url input::placeholder{color:var(--dsw-alias-label-tertiary)}
+.dbu-viewport-wrap{position:relative;display:flex;flex:1;align-items:flex-start;justify-content:center;min-height:0;overflow:auto;background:var(--dsw-alias-bg-layer-3);scrollbar-color:var(--dsw-alias-scrollbar-bg-l2) transparent}
 .dbu-viewport{display:block;width:100%;height:auto;outline:none;cursor:default;user-select:none;-webkit-user-drag:none}
-.dbu-empty{margin:auto;color:#ddd;font-size:13px;text-align:center;padding:24px}
-.dbu-status{display:flex;gap:8px;align-items:center;min-height:28px;padding:0 9px;border-top:1px solid var(--dsw-alias-border-primary,#ddd);font-size:11px;color:var(--dsw-alias-label-tertiary,#777)}
-.dbu-status strong{color:#2f9e44;font-weight:600}
-.dbu-error{color:#d9480f;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dbu-viewport[aria-disabled=true]{cursor:wait;opacity:.72}
+.dbu-empty{margin:auto;color:var(--dsw-alias-label-tertiary);font-size:13px;text-align:center;padding:24px}
+.dbu-status{display:flex;gap:8px;align-items:center;min-height:30px;padding:0 12px;border-top:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-1);font-size:11px;color:var(--dsw-alias-label-tertiary)}
+.dbu-status strong{color:var(--dsw-alias-state-success-primary);font-weight:600}
+.dbu-status span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dbu-error{color:var(--dsw-alias-state-error-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media (max-width:760px){.dbu-toolbar{flex-wrap:wrap}.dbu-url{order:10;flex-basis:100%}.dbu-toolbar select{flex:1;max-width:none}}
 `
 
 interface RpcClient {
   call<T>(endpoint: string, payload?: Record<string, unknown>, signal?: AbortSignal): Promise<T>
 }
 
-interface HeaderInjected {
-  openBrowser(): void
-}
-
-type HeaderProps = PropsRuntime<'conversation.session.header.actions'> & HeaderInjected
-type OverlayProps = PropsRuntime<'shell.overlay'> & HeaderInjected
-
 interface PanelInjected {
-  closeBrowser(): void
   rpc: RpcClient
 }
 
-type PanelProps = PropsRuntime<'shell.overlay'> & PanelInjected
+type PanelProps = PropsRuntime<'conversation.view'> & PanelInjected
 
 function activeTab(screen: BrowserScreenView | undefined): BrowserTabView | undefined {
   return screen?.tabs.find(tab => tab.active)
 }
 
-function BrowserHeaderAction({ openBrowser }: HeaderProps) {
-  return (
-    <button type="button" className="dbu-header-button" onClick={openBrowser} title="Open persistent browser">
-      Browser
-    </button>
-  )
-}
-
-function BrowserOverlayLauncher({ openBrowser }: OverlayProps) {
-  return (
-    <button
-      type="button"
-      className="dbu-header-button dbu-overlay-launcher"
-      onClick={openBrowser}
-      title="Open persistent browser"
-    >
-      Browser
-    </button>
-  )
-}
-
-function BrowserPanel({ closeBrowser, rpc }: PanelProps) {
+function BrowserPanel({ rpc }: PanelProps) {
   const [clientId] = useState(() => globalThis.crypto.randomUUID())
   const imageRef = useRef<HTMLImageElement>(null)
   const editingUrl = useRef(false)
@@ -245,7 +218,6 @@ function BrowserPanel({ closeBrowser, rpc }: PanelProps) {
         </select>
         <button type="button" disabled={disabled} onClick={() => { void command('tabs/new').catch(() => undefined) }} title="New tab">＋</button>
         <button type="button" disabled={disabled || !selected} onClick={() => { void command('tabs/close', { pageId: selected }).catch(() => undefined) }} title="Close tab">×</button>
-        <button type="button" onClick={closeBrowser} title="Close Browser panel">Close</button>
       </div>
       <div className="dbu-viewport-wrap">
         {screen === undefined
@@ -275,32 +247,6 @@ function BrowserPanel({ closeBrowser, rpc }: PanelProps) {
   )
 }
 
-class BrowserPanelController {
-  #disposePanel: (() => void) | undefined
-
-  constructor(private readonly ctx: Context, readonly rpc: RpcClient) {}
-
-  open = (): void => {
-    if (this.#disposePanel !== undefined) return
-    this.#disposePanel = this.ctx.slots.inject('shell.overlay', () => this.ctx.slots.register({
-      name: 'shell.overlay',
-      id: 'browser-use-panel',
-      order: 110,
-      inject: (): PanelInjected => ({ closeBrowser: this.close, rpc: this.rpc }),
-    }, BrowserPanel))
-  }
-
-  close = (): void => {
-    this.#disposePanel?.()
-    this.#disposePanel = undefined
-  }
-
-  dispose(): void {
-    this.#disposePanel?.()
-    this.#disposePanel = undefined
-  }
-}
-
 export const inject = ['connection', 'slots']
 
 export function apply(ctx: Context): void {
@@ -312,7 +258,6 @@ export function apply(ctx: Context): void {
       return result.value as T
     },
   }
-  const controller = new BrowserPanelController(ctx, rpc)
 
   ctx.effect(() => {
     const style = document.createElement('style')
@@ -323,19 +268,11 @@ export function apply(ctx: Context): void {
     return () => { style.remove() }
   }, 'browser-use: styles')
 
-  ctx.effect(() => () => { controller.dispose() }, 'browser-use: panel lifecycle')
-
-  ctx.slots.inject('conversation.session.header.actions', () => ctx.slots.register({
-    name: 'conversation.session.header.actions',
-    id: 'browser-use',
-    order: 30,
-    inject: (): HeaderInjected => ({ openBrowser: controller.open }),
-  }, BrowserHeaderAction))
-
-  ctx.slots.inject('shell.overlay', () => ctx.slots.register({
-    name: 'shell.overlay',
-    id: 'browser-use-launcher',
-    order: 100,
-    inject: (): HeaderInjected => ({ openBrowser: controller.open }),
-  }, BrowserOverlayLauncher))
+  ctx.slots.inject('conversation.view', () => ctx.slots.register({
+    name: 'conversation.view',
+    id: 'browser',
+    order: 20,
+    label: 'Browser',
+    inject: (): PanelInjected => ({ rpc }),
+  }, BrowserPanel))
 }
