@@ -1,6 +1,6 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { AttachmentId } from '@deepseek-ai/dsh-attachment'
-import type {} from '@deepseek-ai/dsh-attachment'
+import type { ImageMediaType } from '@deepseek-ai/dsh-attachment'
 import type {} from '@deepseek-ai/dsh-llm'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type {} from '@deepseek-ai/dsh-tools'
@@ -37,6 +37,13 @@ const STATE_SCHEMA = {
     tabs: { type: 'array', items: TAB_SCHEMA, required: true },
   },
 } as const
+
+const IMAGE_MEDIA_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'] as const satisfies readonly ImageMediaType[]
+
+function screenshotName(mediaType: ImageMediaType): string {
+  const extension = mediaType === 'image/jpeg' ? 'jpg' : mediaType.slice('image/'.length)
+  return `browser-screenshot.${extension}`
+}
 
 function actionText(value: { title: string; url: string }): string {
   return `${value.title}\n${value.url}`
@@ -216,7 +223,7 @@ export function registerBrowserScreenshotTool(ctx: Context, browser: BrowserMana
           url: { type: 'string', required: true },
           title: { type: 'string', required: true },
           attachmentId: { type: 'string', required: true },
-          mediaType: { type: 'string', const: 'image/jpeg', required: true },
+          mediaType: { type: 'string', enum: IMAGE_MEDIA_TYPES, required: true },
           bytes: { type: 'integer', required: true },
           width: { type: 'integer', required: true },
           height: { type: 'integer', required: true },
@@ -225,7 +232,7 @@ export function registerBrowserScreenshotTool(ctx: Context, browser: BrowserMana
       },
       render: (_args, value) => [{
         type: 'text',
-        text: `${value.title}\n${value.url}\n${value.width}x${value.height} JPEG screenshot`,
+        text: `${value.title}\n${value.url}\n${value.width}x${value.height} screenshot`,
       }, {
         type: 'image',
         attachment: {
@@ -255,16 +262,15 @@ export function registerBrowserScreenshotTool(ctx: Context, browser: BrowserMana
       const ref = await ctx.attachments.saveImage({
         data: screenshot.data,
         mediaType: 'image/jpeg',
-        name: 'browser-screenshot.jpg',
       })
       return {
         ...screenshot.page,
         attachmentId: String(ref.attachmentId),
-        mediaType: 'image/jpeg' as const,
+        mediaType: ref.mediaType,
         bytes: ref.bytes,
         width: ref.width,
         height: ref.height,
-        name: ref.name ?? 'browser-screenshot.jpg',
+        name: screenshotName(ref.mediaType),
       }
     },
   }))
