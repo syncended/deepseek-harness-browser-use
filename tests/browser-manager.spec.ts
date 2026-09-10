@@ -104,7 +104,9 @@ describe('BrowserManager', () => {
     } finally {
       await browser.close()
     }
-  })
+  // Several real navigations, screenshots and a cold Chromium start can take
+  // nearly 30 seconds on CI; individual operations still have 10-second limits.
+  }, 60_000)
 
   it('restores tabs from the durable browser profile', async () => {
     const first = new BrowserManager({ profile: 'persistence', headless: true, operationTimeoutMs: 10_000 })
