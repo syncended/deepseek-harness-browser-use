@@ -1,7 +1,8 @@
 import type { Context } from '@deepseek-ai/cordis'
-import type {} from '@deepseek-ai/dsh-client-connection'
+import { clientRequestSchema } from '@deepseek-ai/dsh-client-connection'
+import type { ConnectionRpcHandler, ConnectionRpcResult } from '@deepseek-ai/dsh-client-connection'
 import { BrowserManager, type BrowserActor } from './browser-manager.js'
-import type { BrowserRpcEndpoint } from './protocol.js'
+import { BROWSER_RPC_ENDPOINTS, browserRpcMethod, type BrowserRpcEndpoint } from './protocol.js'
 
 function record(payload: unknown): Record<string, unknown> {
   if (payload === null || typeof payload !== 'object' || Array.isArray(payload)) {
@@ -42,7 +43,7 @@ function failure(error: unknown) {
 }
 
 export function registerBrowserRpc(ctx: Context, browser: BrowserManager): void {
-  ctx.connection.rpc.handle('/browser-use', async (rawEndpoint, rawPayload, signal) => {
+  const handle: ConnectionRpcHandler = async (rawEndpoint, rawPayload, signal) => {
     try {
       const endpoint = rawEndpoint as BrowserRpcEndpoint
       const payload = record(rawPayload)
@@ -135,5 +136,34 @@ export function registerBrowserRpc(ctx: Context, browser: BrowserManager): void 
     } catch (error: unknown) {
       return failure(error)
     }
-  }, { authority: 'trusted-host' })
+  }
+
+  // Exact routes share Connection's authenticated /api carrier. A plugin does
+  // not need to mount a separate HTTP channel or depend on webServer.
+  for (const endpoint of BROWSER_RPC_ENDPOINTS) {
+    const method = browserRpcMethod(endpoint)
+    ctx.effect(() => ctx.connection.fetch.register({
+      path: `/api/${method}`,
+      methods: ['POST'],
+      requestBody: 'buffered',
+      fetch: async request => {
+        if (request.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase() !== 'application/json') {
+          return new Response('content type must be application/json', { status: 415 })
+        }
+        let body: unknown
+        try {
+          body = await request.json()
+        } catch {
+          return new Response('body is not JSON', { status: 400 })
+        }
+        const parsed = clientRequestSchema.safeParse(body)
+        if (!parsed.success) return new Response('invalid client-request message', { status: 400 })
+        const message = parsed.data
+        const result: ConnectionRpcResult<unknown> = message.method === method
+          ? await handle(endpoint, message.payload, request.signal)
+          : { ok: false, error: { code: 'gateway/bad-request', message: 'method does not match endpoint', details: {} } }
+        return Response.json({ type: 'server-response', rpcId: message.rpcId, result })
+      },
+    }), `browser-use: ${method} RPC route`)
+  }
 }

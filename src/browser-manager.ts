@@ -253,12 +253,19 @@ export class BrowserManager {
 
   async screen(clientId: string, signal?: AbortSignal): Promise<BrowserScreenView> {
     return this.#exclusive(async () => {
-      this.#touchLease(clientId)
+      this.#expireLease()
+      if (this.#humanLease?.clientId === clientId) {
+        this.#humanLease.expiresAt = Date.now() + this.config.humanLeaseTtlMs
+      }
       throwIfAborted(signal)
       const screenshot = await this.#captureScreenshot(signal)
       const state = await this.state(true)
+      const controlOwner = state.control === 'agent'
+        ? 'agent'
+        : this.#humanLease?.clientId === clientId ? 'self' : 'other'
       return {
         ...state,
+        controlOwner,
         image: screenshot.data.toString('base64'),
         mediaType: 'image/jpeg',
         width: screenshot.width,

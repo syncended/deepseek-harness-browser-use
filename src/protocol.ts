@@ -13,6 +13,7 @@ export interface BrowserStateView {
 }
 
 export interface BrowserScreenView extends BrowserStateView {
+  controlOwner: 'agent' | 'self' | 'other'
   image: string
   mediaType: 'image/jpeg'
   width: number
@@ -33,22 +34,17 @@ export interface BrowserActionView {
   title: string
 }
 
-export type BrowserRpcEndpoint =
-  | 'state'
-  | 'screen'
-  | 'lease/acquire'
-  | 'lease/release'
-  | 'navigate'
-  | 'back'
-  | 'forward'
-  | 'reload'
-  | 'tabs/new'
-  | 'tabs/select'
-  | 'tabs/close'
-  | 'pointer/click'
-  | 'viewport/resize'
-  | 'wheel'
-  | 'key'
+export const BROWSER_RPC_ENDPOINTS = [
+  'state', 'screen', 'lease/acquire', 'lease/release', 'navigate',
+  'back', 'forward', 'reload', 'tabs/new', 'tabs/select', 'tabs/close',
+  'pointer/click', 'viewport/resize', 'wheel', 'key',
+] as const
+
+export type BrowserRpcEndpoint = typeof BROWSER_RPC_ENDPOINTS[number]
+
+export function browserRpcMethod(endpoint: BrowserRpcEndpoint): string {
+  return `browser-use/${endpoint}`
+}
 
 export interface BrowserUseConfig {
   profile?: string

@@ -2,7 +2,7 @@
 
 Persistent Playwright browser tools and an interactive browser panel for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness).
 
-The plugin keeps one Chromium profile across turns, shares login state between tabs, lets agents operate pages through stable snapshot references, and lets a human temporarily take control from DSH Web.
+The plugin keeps one Chromium profile across turns, shares login state between tabs, lets agents operate pages through stable snapshot references, and provides a live browser view where a human can watch without interrupting the agent or explicitly take control when needed.
 
 <p align="center">
   <img src="./docs/assets/browser-panel.png" width="920" alt="Dark-theme DeepSeek Harness Browser Use panel displaying the Harness repository" />
@@ -10,13 +10,20 @@ The plugin keeps one Chromium profile across turns, shares login state between t
 
 ## Requirements
 
-- DeepSeek Harness `0.1.1-rc.2` or a compatible release.
-- Node.js 18 or newer.
+- DeepSeek Harness `0.1.5-rc.2` (the dependencies and development fixtures target this exact release).
+- Node.js 22 or newer.
 - pnpm available to the `dsh plugin` command.
 - A Chromium or Chrome executable on the Host machine.
 - A model that accepts image input if `browser_screenshot` is used.
 
 The package depends on `playwright-core`; it does not download a browser automatically.
+
+The panel registers authenticated POST routes under `/api/browser-use/` through
+`connection.fetch`. It uses the standard DSH browser session and Origin checks,
+forwards request cancellation to Playwright, and removes its routes when the
+plugin unloads. No changes to the core plugins or profile injection overrides
+are required. This checkout replaces the older `/browser-use` RPC transport;
+rebuild it and refresh the DSH page after upgrading.
 
 ## Install
 
@@ -48,9 +55,9 @@ Do not start a second Host for the same profile. Refresh DSH Web after the Host 
 
 1. Open or create a DSH session.
 2. Open the **Browser** tab in the conversation details pane.
-3. Enter an HTTP or HTTPS address in the toolbar.
-4. Use the control indicator at the bottom of the panel to take or release human control.
-5. Ask the agent to browse; the same tabs and profile remain available on later turns.
+3. Keep the panel open to watch the agent browse in real time; passive viewing does not block agent actions.
+4. Select **Take control** at the bottom only when you need to interact manually, then select **Return control to agent** when finished.
+5. Enter an HTTP or HTTPS address in the toolbar while you have control, or ask the agent to navigate. The same tabs and profile remain available on later turns.
 
 Login state is shared by all tabs in the configured browser profile. The durable profile is stored under the DSH home directory, not in this repository.
 
@@ -108,7 +115,7 @@ Restart the Host after changing Host configuration.
 - Browser profiles can contain authenticated sessions. Protect the DSH home directory as credential material.
 - Remote Web control follows the Host's DSH `trustedHosts` policy. Do not expose DSH Web to untrusted networks.
 - Keep Chromium's sandbox enabled. Set `noSandbox: true` only inside an appropriately isolated container where Chromium runs as root.
-- Human control blocks agent actions until the lease is released or expires.
+- Passive Browser-panel viewing does not acquire control. Explicit human control blocks agent actions until the lease is released or expires.
 - Use a separate `profile` for untrusted browsing or separate identities.
 
 ## Troubleshooting

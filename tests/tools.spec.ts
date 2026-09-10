@@ -5,8 +5,8 @@ import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import { LocalAttachmentStore } from '@deepseek-ai/dsh-attachment-local'
-import { createApiProxy } from '@deepseek-ai/dsh-host-apiproxy'
-import { CallId, contentHasImage, createToolResultMessage } from '@deepseek-ai/dsh-llm'
+import { SESSION_LOG_FILENAME, streamSessionLogZip } from '@deepseek-ai/dsh-session-log-export'
+import { ToolCallId, contentHasImage, createToolResultMessage } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import { DeepSeekAdapter } from '@deepseek-ai/dsh-llm-deepseek'
 import type { DeepSeekConnectionOptions, DeepSeekFileStore, WireRequest } from '@deepseek-ai/dsh-llm-deepseek'
@@ -146,13 +146,14 @@ describe('browser_screenshot attachments', () => {
 
     expect(value).toMatchObject({
       attachmentId: String(ref.attachmentId),
-      mediaType: 'image/png',
+      mediaType: 'image/jpeg',
       bytes: ref.bytes,
       width: ref.width,
       height: ref.height,
-      name: 'browser-screenshot.png',
+      name: 'browser-screenshot.jpg',
     })
-    expect(ref.mediaType).toBe('image/png')
+    expect(ref.mediaType).toBe('image/jpeg')
+    expect({ width: ref.width, height: ref.height }).toEqual({ width: 16, height: 12 })
     expect(tool.output.schema).toMatchObject({
       properties: {
         mediaType: {
@@ -196,7 +197,7 @@ describe('browser_screenshot attachments', () => {
       const tool = screenshotTool(store, await jpegScreenshot())
       const { content, ref } = await executeScreenshot(tool)
       const toolResult = createToolResultMessage({
-        callId: CallId('call-1'),
+        callId: ToolCallId('call-1'),
         content,
         isError: false,
       })
@@ -204,6 +205,7 @@ describe('browser_screenshot attachments', () => {
 
       const adapter = new DeepSeekAdapter({
         options: () => modelConnection(`http://127.0.0.1:${String(address.port)}`),
+        prepareExtensions: async () => ({ fields: {}, accept: async () => undefined }),
         resolveApiKey: async () => 'test-key',
         resolveUserId: () => 'test-user' as never,
         resolveAttachments: () => store,
@@ -230,7 +232,7 @@ describe('browser_screenshot attachments', () => {
         role: 'user',
         content: expect.arrayContaining([{
           type: 'image_url',
-          image_url: { url: expect.stringMatching(/^data:image\/png;base64,/) },
+          image_url: { url: expect.stringMatching(/^data:image\/jpeg;base64,/) },
         }]),
       })
 
@@ -239,7 +241,7 @@ describe('browser_screenshot attachments', () => {
         maxBytes: 1_000_000,
       })
       expect(requestImage.attachment).toEqual(ref)
-      await expect(store.readImage({ ...ref, mediaType: 'image/jpeg' })).rejects.toThrow(
+      await expect(store.readImage({ ...ref, mediaType: 'image/png' })).rejects.toThrow(
         'Stored attachment metadata does not match its reference.',
       )
     } finally {
@@ -260,32 +262,18 @@ describe('browser_screenshot attachments', () => {
         },
       })}\n`,
     }
-    const sessionPersistence = {
-      supportsRawArtifacts: true,
-      async readRaw() {
-        return root
-      },
-    }
-    const ctx = new Context()
-    ctx.provide('attachments', store)
-    ctx.provide('sessionPersistence', sessionPersistence as never)
-    ctx.provide('sessionQuery', {} as never)
-    ctx.provide('userQuestions', { registerProvider: () => () => undefined } as never)
-    const api = createApiProxy(ctx, {
-      defaultModelSelection: () => ({ provider: 'test', model: 'vision' }),
-      cwd: process.cwd(),
-      sessionExportCompressionLevel: 0,
-    })
-    const response = await api.downloads.sessionLog({
-      sessionId: 'session-1' as never,
-      includeDescendants: false,
-    }, new AbortController().signal)
+    const response = new Response(streamSessionLogZip({
+      attachments: store,
+      sessionPersistence: {} as never,
+      sessionQuery: {} as never,
+      sessions: undefined,
+    }, root.content, 'session-1' as never, false, 0, new AbortController().signal))
 
     expect(response.status).toBe(200)
     const archive = unzipSync(new Uint8Array(await response.arrayBuffer()))
-    const mediaPath = `media/${String(ref.attachmentId)}.png`
-    expect(Object.keys(archive).sort()).toEqual(['session.jsonl', mediaPath].sort())
-    expect(strFromU8(archive['session.jsonl']!)).toBe(root.content)
+    const mediaPath = `media/${String(ref.attachmentId)}.jpg`
+    expect(Object.keys(archive).sort()).toEqual([SESSION_LOG_FILENAME, mediaPath].sort())
+    expect(strFromU8(archive[SESSION_LOG_FILENAME]!)).toBe(root.content)
     expect(archive[mediaPath]).toEqual((await store.readImage(ref)).data)
   })
 })

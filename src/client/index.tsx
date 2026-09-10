@@ -1,6 +1,6 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
-import type {} from '@deepseek-ai/dsh-client-runtime/client'
+import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import {
@@ -12,7 +12,7 @@ import {
   type KeyboardEvent,
   type MouseEvent,
 } from 'react'
-import type { BrowserScreenView, BrowserTabView } from '../protocol.js'
+import { browserRpcMethod, type BrowserRpcEndpoint, type BrowserScreenView, type BrowserTabView } from '../protocol.js'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -20,7 +20,7 @@ declare module '@deepseek-ai/cordis' {
   }
 }
 
-const CHANNEL = '/browser-use'
+const CHANNEL = '/api'
 const STYLE_ID = '@syncended/dsh-browser-use/client.css'
 const POLL_MS = 400
 const VIEWPORT_RESIZE_DEBOUNCE_MS = 120
@@ -42,19 +42,26 @@ const styles = `
 .dbu-url input{width:100%;height:30px;box-sizing:border-box;border:1px solid var(--dsw-alias-border-l2);border-radius:7px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);padding:0 10px;font:inherit;font-size:12px}
 .dbu-url input::placeholder{color:var(--dsw-alias-label-tertiary)}
 .dbu-viewport-wrap{position:relative;display:flex;flex:1;align-items:flex-start;justify-content:center;min-height:0;overflow:auto;background:var(--dsw-alias-bg-layer-3);scrollbar-color:var(--dsw-alias-scrollbar-bg-l2) transparent}
-.dbu-viewport{display:block;width:auto;height:auto;max-width:100%;max-height:100%;outline:none;cursor:default;user-select:none;-webkit-user-drag:none}
-.dbu-viewport[aria-disabled=true]{cursor:wait;opacity:.72}
+.dbu-viewport{display:block;width:auto;height:auto;max-width:100%;max-height:100%;outline:none;cursor:pointer;user-select:none;-webkit-user-drag:none}
+.dbu-viewport[aria-disabled=true]{cursor:default}
 .dbu-empty{display:flex;flex:1;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--dsw-alias-label-tertiary);font-size:13px;text-align:center;padding:24px}
 .dbu-empty strong{color:var(--dsw-alias-label-secondary);font-size:14px;font-weight:500}
-.dbu-status{display:flex;gap:8px;align-items:center;min-height:30px;padding:0 12px;border-top:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-1);font-size:11px;color:var(--dsw-alias-label-tertiary)}
-.dbu-status strong{color:var(--dsw-alias-state-success-primary);font-weight:600}
+.dbu-status{display:flex;gap:8px;align-items:center;min-height:34px;padding:0 12px;border-top:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-1);font-size:11px;color:var(--dsw-alias-label-tertiary)}
+.dbu-status strong{font-weight:600;white-space:nowrap}
+.dbu-status strong[data-owner=self]{color:var(--dsw-alias-state-success-primary)}
+.dbu-status strong[data-owner=agent]{color:var(--dsw-alias-state-business-primary)}
+.dbu-status strong[data-owner=other]{color:var(--dsw-alias-label-secondary)}
 .dbu-status span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dbu-control{height:24px;margin-left:auto;box-sizing:border-box;border:1px solid var(--dsw-alias-border-l2);border-radius:6px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);padding:0 8px;font:inherit;font-size:11px;cursor:pointer;white-space:nowrap}
+.dbu-control:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover-solid)}
+.dbu-control:disabled{opacity:.45;cursor:default}
+.dbu-control:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary);outline-offset:1px}
 .dbu-error{color:var(--dsw-alias-state-error-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 @media (max-width:760px){.dbu-toolbar{flex-wrap:wrap}.dbu-url{order:10;flex-basis:100%}.dbu-toolbar select{flex:1;max-width:none}}
 `
 
 interface RpcClient {
-  call<T>(endpoint: string, payload?: Record<string, unknown>, signal?: AbortSignal): Promise<T>
+  call<T>(endpoint: BrowserRpcEndpoint, payload?: Record<string, unknown>, signal?: AbortSignal): Promise<T>
 }
 
 interface PanelInjected {
@@ -95,6 +102,7 @@ function BrowserPanel({ rpc }: PanelProps) {
     const next = await rpc.call<BrowserScreenView>('screen', { clientId }, signal)
     if (signal?.aborted || !mounted.current) return
     setScreen(next)
+    setLeaseOwned(next.controlOwner === 'self')
     if (!editingUrl.current) setUrl(activeTab(next)?.url ?? 'about:blank')
   }, [clientId, rpc])
 
@@ -104,10 +112,6 @@ function BrowserPanel({ rpc }: PanelProps) {
     let timer: ReturnType<typeof setTimeout> | undefined
     const loop = async (): Promise<void> => {
       try {
-        const lease = await rpc.call<{ acquired: boolean }>('lease/acquire', { clientId }, abort.signal)
-        if (abort.signal.aborted) return
-        setLeaseOwned(lease.acquired)
-        if (!lease.acquired) throw new Error('Another Browser panel currently owns human control')
         await refresh(abort.signal)
         if (!abort.signal.aborted) setError(undefined)
       } catch (reason: unknown) {
@@ -125,9 +129,9 @@ function BrowserPanel({ rpc }: PanelProps) {
     }
   }, [clientId, refresh, rpc])
 
-  const command = useCallback((endpoint: string, payload: Record<string, unknown> = {}): Promise<void> => {
+  const command = useCallback((endpoint: BrowserRpcEndpoint, payload: Record<string, unknown> = {}): Promise<void> => {
     const run = commandTail.current.then(async () => {
-      if (!leaseOwned) throw new Error('Waiting for human browser control')
+      if (!leaseOwned) throw new Error('Take browser control before interacting')
       if (mounted.current) setBusyCount(count => count + 1)
       try {
         await rpc.call(endpoint, { clientId, ...payload })
@@ -142,6 +146,31 @@ function BrowserPanel({ rpc }: PanelProps) {
     commandTail.current = run.catch(() => undefined)
     return run
   }, [clientId, leaseOwned, rpc])
+
+  const changeControl = useCallback((take: boolean): Promise<void> => {
+    const run = commandTail.current.then(async () => {
+      if (mounted.current) setBusyCount(count => count + 1)
+      try {
+        if (take) {
+          const result = await rpc.call<{ acquired: boolean }>('lease/acquire', { clientId })
+          if (!result.acquired) throw new Error('Another Browser panel currently owns human control')
+          if (mounted.current) setLeaseOwned(true)
+        } else {
+          await rpc.call('lease/release', { clientId })
+          if (mounted.current) setLeaseOwned(false)
+        }
+        await refresh()
+        if (mounted.current) setError(undefined)
+      } catch (reason: unknown) {
+        if (mounted.current) setError(reason instanceof Error ? reason.message : String(reason))
+        throw reason
+      } finally {
+        if (mounted.current) setBusyCount(count => Math.max(0, count - 1))
+      }
+    })
+    commandTail.current = run.catch(() => undefined)
+    return run
+  }, [clientId, refresh, rpc])
 
   useEffect(() => {
     const viewport = viewportRef.current
@@ -247,6 +276,10 @@ function BrowserPanel({ rpc }: PanelProps) {
   const selected = screen?.activePageId ?? ''
   const busy = busyCount > 0
   const disabled = busy || !leaseOwned
+  const controlOwner = screen?.controlOwner
+  const controlStatus = controlOwner === 'self'
+    ? 'You control the browser'
+    : controlOwner === 'other' ? 'Another panel has control' : 'Agent controls · Live view'
 
   return (
     <section
@@ -306,9 +339,23 @@ function BrowserPanel({ rpc }: PanelProps) {
           )}
       </div>
       <div className="dbu-status">
-        <strong>{leaseOwned ? 'You control the browser' : 'Waiting for control'}</strong>
+        <strong data-owner={controlOwner ?? 'agent'}>{screen === undefined ? 'Starting browser…' : controlStatus}</strong>
         <span>{activeTab(screen)?.title ?? 'Starting…'}</span>
         {error === undefined ? null : <span className="dbu-error" title={error}>{error}</span>}
+        {screen === undefined
+          ? null
+          : (
+            <button
+              type="button"
+              className="dbu-control"
+              disabled={busy || controlOwner === 'other'}
+              onClick={() => { void changeControl(controlOwner !== 'self').catch(() => undefined) }}
+            >
+              {controlOwner === 'self'
+                ? 'Return control to agent'
+                : controlOwner === 'other' ? 'Controlled elsewhere' : 'Take control'}
+            </button>
+          )}
       </div>
     </section>
   )
@@ -318,8 +365,8 @@ export const inject = ['connection', 'slots']
 
 export function apply(ctx: Context): void {
   const rpc: RpcClient = {
-    async call<T>(endpoint: string, payload: Record<string, unknown> = {}, signal?: AbortSignal): Promise<T> {
-      const result = await ctx.connection.rpc.call(CHANNEL, endpoint, payload, signal)
+    async call<T>(endpoint: BrowserRpcEndpoint, payload: Record<string, unknown> = {}, signal?: AbortSignal): Promise<T> {
+      const result = await ctx.connection.rpc.call(CHANNEL, browserRpcMethod(endpoint), payload, signal)
       if (!result.ok) throw new Error(result.error.message)
       return result.value as T
     },
