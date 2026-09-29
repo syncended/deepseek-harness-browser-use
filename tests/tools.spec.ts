@@ -110,6 +110,7 @@ async function executeScreenshot(tool: ToolDefinition): Promise<{
 
 function modelConnection(baseURL: string): DeepSeekConnectionOptions {
   return {
+    protocol: 'chat-completions',
     baseURL,
     apiKeyEnv: 'TEST_API_KEY' as never,
     defaults: { thinking: 'disabled' },
@@ -237,7 +238,8 @@ describe('browser_screenshot attachments', () => {
       })
 
       const requestImage = await store.readImageRequest(ref, {
-        maxPixels: 1_000_000,
+        width: ref.width,
+        height: ref.height,
         maxBytes: 1_000_000,
       })
       expect(requestImage.attachment).toEqual(ref)

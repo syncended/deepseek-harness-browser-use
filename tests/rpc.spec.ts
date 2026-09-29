@@ -49,7 +49,7 @@ async function fixture() {
   return { ctx, browser, state, fiber, plugin, origin, cookie, request }
 }
 
-describe('browser RPC on DSH 0.1.5-rc.2', () => {
+describe('browser RPC on DSH 0.1.6-alpha.2', () => {
   it('boots with the published Connection and returns a correlated RPC response', async () => {
     const { request, browser, state } = await fixture()
     const response = await request('state')

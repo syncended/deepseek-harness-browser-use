@@ -64,7 +64,12 @@ jobs:
           if npm view "$PACKAGE_NAME@$PACKAGE_VERSION" version >/dev/null 2>&1; then
             echo "$PACKAGE_NAME@$PACKAGE_VERSION is already published; skipping npm publish."
           else
-            npm publish --provenance --access public
+            if [[ "$PACKAGE_VERSION" == *-* ]]; then
+              NPM_TAG=next
+            else
+              NPM_TAG=latest
+            fi
+            npm publish --provenance --access public --tag "$NPM_TAG"
           fi
 
       - name: Create GitHub release

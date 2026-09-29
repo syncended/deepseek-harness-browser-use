@@ -378,14 +378,36 @@ export class BrowserManager {
       const nextEntries = new Map<string, SnapshotEntry>()
       try {
         const locator = page.locator(INTERACTIVE_SELECTOR)
-        const count = Math.min(await locator.count(), 200)
+        // A bounding box alone does not mean the element is actionable: off-screen
+        // controls in collapsed panels can have a box yet Playwright cannot click
+        // them. Filter in the page first so hidden controls do not consume the
+        // 200-ref limit before the visible controls are reached.
+        const visibleIndices = await locator.evaluateAll(nodes => {
+          const indices: number[] = []
+          for (let index = 0; index < nodes.length && indices.length < 200; index += 1) {
+            const node = nodes[index]
+            if (!(node instanceof HTMLElement) || !node.checkVisibility({ checkOpacity: true })
+              || getComputedStyle(node).visibility !== 'visible') continue
+            const box = node.getBoundingClientRect()
+            if (box.width < 1 || box.height < 1 || box.right <= 0 || box.bottom <= 0
+              || box.left >= window.innerWidth || box.top >= window.innerHeight) continue
+            indices.push(index)
+          }
+          return indices
+        })
         let refNumber = 0
-        for (let index = 0; index < count; index += 1) {
+        for (const index of visibleIndices) {
           throwIfAborted(signal)
           const handle = await locator.nth(index).elementHandle()
           if (handle === null) continue
-          const box = await handle.boundingBox().catch(() => null)
-          if (box === null || box.width < 1 || box.height < 1) {
+          const visible = await handle.evaluate(node => {
+            if (!(node instanceof HTMLElement) || !node.checkVisibility({ checkOpacity: true })
+              || getComputedStyle(node).visibility !== 'visible') return false
+            const box = node.getBoundingClientRect()
+            return box.width >= 1 && box.height >= 1 && box.right > 0 && box.bottom > 0
+              && box.left < window.innerWidth && box.top < window.innerHeight
+          }).catch(() => false)
+          if (!visible) {
             await handle.dispose()
             continue
           }

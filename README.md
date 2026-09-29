@@ -10,7 +10,7 @@ The plugin keeps one Chromium profile across turns, shares login state between t
 
 ## Requirements
 
-- DeepSeek Harness `0.1.5-rc.2` (the dependencies and development fixtures target this exact release).
+- DeepSeek Harness `0.1.6-alpha.2` (the dependencies and development fixtures target this release).
 - Node.js 22 or newer.
 - pnpm available to the `dsh plugin` command.
 - A Chromium or Chrome executable on the Host machine.
@@ -27,11 +27,13 @@ rebuild it and refresh the DSH page after upgrading.
 
 ## Install
 
-Install from npm into the profile that runs DSH Web:
+Install the prerelease matching DSH `0.1.6-alpha.2` into the profile that runs DSH Web:
 
 ```bash
-dsh plugin --profile web add @syncended/dsh-browser-use
+dsh plugin --profile web add @syncended/dsh-browser-use@0.1.6-alpha.1
 ```
+
+Prereleases are published under npm's `next` tag; `latest` remains on the stable DSH-compatible line.
 
 Or install a local checkout while developing:
 
@@ -143,7 +145,7 @@ This plugin does not attempt to bypass anti-bot controls. Use the site's support
 ## Update and remove
 
 ```bash
-dsh plugin --profile web add @syncended/dsh-browser-use@latest
+dsh plugin --profile web add @syncended/dsh-browser-use@next # DSH 0.1.6-alpha.2
 dsh plugin --profile web remove @syncended/dsh-browser-use
 ```
 

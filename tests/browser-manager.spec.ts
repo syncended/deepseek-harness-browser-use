@@ -19,12 +19,17 @@ const page = `<!doctype html>
   </body>
 </html>`
 
+const visibilityPage = `<!doctype html><title>Visible controls</title>
+${Array.from({ length: 220 }, (_, index) => `<button style="position:absolute;left:-5000px">Offscreen ${index}</button>`).join('')}
+<button style="visibility:hidden">Hidden control</button>
+<button onclick="location.hash='reachable'">Reachable control</button>`
+
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'dsh-browser-use-'))
   process.env.DSH_HOME = root
-  server = createServer((_request, response) => {
+  server = createServer((request, response) => {
     response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
-    response.end(page)
+    response.end(request.url === '/visibility' ? visibilityPage : page)
   })
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject)
@@ -107,6 +112,22 @@ describe('BrowserManager', () => {
   // Several real navigations, screenshots and a cold Chromium start can take
   // nearly 30 seconds on CI; individual operations still have 10-second limits.
   }, 60_000)
+
+  it('only snapshots on-screen controls, even after 200 off-screen elements', async () => {
+    const browser = new BrowserManager({ profile: 'visibility', headless: true, operationTimeoutMs: 10_000 })
+    try {
+      await browser.navigate(`${origin}/visibility`, { kind: 'agent' })
+      const snapshot = await browser.snapshot()
+      expect(snapshot.content).not.toContain('Offscreen')
+      expect(snapshot.content).not.toContain('Hidden control')
+      const ref = snapshot.content.match(/\[(e\d+)] button "Reachable control"/)?.[1]
+      expect(ref).toBeDefined()
+      await expect(browser.click(snapshot.snapshotId, ref!, { kind: 'agent' }))
+        .resolves.toMatchObject({ url: `${origin}/visibility#reachable` })
+    } finally {
+      await browser.close()
+    }
+  })
 
   it('restores tabs from the durable browser profile', async () => {
     const first = new BrowserManager({ profile: 'persistence', headless: true, operationTimeoutMs: 10_000 })
